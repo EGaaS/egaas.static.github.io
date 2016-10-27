@@ -1,0 +1,233 @@
+{{ define "editPage" }}
+<style>
+	.textEditor, .textEditorMenu {
+		position:relative;
+		font-size:0px;
+		padding-top:1px;
+		padding-bottom:1px;
+	}
+	.textEditor code, .textEditorMenu code  {
+		position:relative;
+		font: 14px "Monaco","Menlo","Ubuntu Mono","Consolas","source-code-pro",monospace;
+		line-height:17px;
+		z-index:1;
+    }
+	.textEditor section, .textEditorMenu section  {
+		position:absolute;
+		left:0px;
+		top:0px;
+		width:100%;
+        height:100%;
+		z-index:2;
+    }
+</style>
+
+<script>
+	var serverTime;
+	var menu = null;
+	
+	var editor = ace.edit("textEditor");
+	var JavaScriptMode = ace.require("ace/mode/markdown").Mode;
+	$(".textEditor code").html(editor.getValue());
+	$("#page_value").val(editor.getValue());
+	editor.setTheme("ace/theme/chrome");
+    editor.session.setMode(new JavaScriptMode());
+	editor.setShowPrintMargin(false);
+	editor.getSession().setUseWrapMode(true);
+	editor.getSession().on('change', function(e) {
+		$(".textEditor code").html(editor.getValue());
+		$("#page_value").val(editor.getValue());
+		editor.resize();
+	});
+	
+	function SetMenu() {
+		if (!menu) {
+			menu = $("#page_menu").val();
+		}
+		$("#DataMenuBtn").click();
+		$.ajax({
+			type: 'POST',
+			url: 'ajax?json=ajax_get_menu&name=' +  menu + '&global=' + $("#global").val(),
+			dataType: 'json',
+			crossDomain: true,
+			success: function(data) {
+				$("#DataMenu").html("").append(
+					'<div class="form-group">' +
+					   '<label>Name</label>' +
+					   '<p class="form-control-static">' + data.name + '</p>' +
+				   '</div>' +
+				   '<div class="form-group">' +
+					   '<label>Value</label>' +
+					   '<pre class="textEditorMenu">' +
+							'<code>' + data.value + '</code>' +
+							'<section id="textEditorMenu">' + data.value + '</section>' +
+						'</pre>' +
+				    '</div>' +
+					'<div class="form-group">' +
+					   '<label>Conditions</label>' +
+					   '<p class="form-control-static">' + data.conditions + '</p>' +
+				   '</div>'
+				);
+				
+				var editor = ace.edit("textEditorMenu");
+				var JavaScriptMode = ace.require("ace/mode/markdown").Mode;
+				editor.setTheme("ace/theme/chrome");
+				editor.session.setMode(new JavaScriptMode());
+				editor.setShowPrintMargin(false);
+				editor.getSession().setUseWrapMode(true);
+				editor.renderer.setShowGutter(false);
+				editor.setReadOnly(true);
+				
+				obj.removeClass("whirl standard");
+			},
+			error: function(xhr, status, error) {
+				Alert("Error", error, "error");
+			}
+		});
+	}
+	
+	function EditMenu() {
+		load_page('editMenu', {name: menu} );
+	}
+	
+	$('#page_menu').select2({
+		minimumResultsForSearch: Infinity,
+		theme: 'bootstrap'
+	});
+	
+	SetMenu();
+	
+	$('#page_menu').on('change', function() {
+		menu = $(this).val();
+		SetMenu();
+	});
+	
+	$('#send').bind('click', function () {
+
+		$.get( 'ajax?controllerName=GetServerTime', function (data) {
+			serverTime = data.time;
+			$("#for-signature").val('{{.TxTypeId}},'+serverTime+',{{.CitizenId}},{{.StateId}},'+$("#global").val()+','+$("#page_name").val()+','+$("#page_value").val()+','+$("#page_menu").val()+','+$("#page_conditions").val());
+			doSign();
+			$("#send_to_net").trigger("click");
+		}, "json" );
+	} );
+
+
+	$('#send_to_net').bind('click', function () {
+		$.ajax({
+			type: 'POST',
+			url: 'ajax?controllerName=saveQueue',
+			data: {
+				'global' : $("#global").val(),
+				'name' : $("#page_name").val(),
+				'value' : $("#page_value").val(),
+				'menu' : $("#page_menu").val(),
+				'conditions' : $("#page_conditions").val(),
+				'type' : '{{.TxType}}',
+				'time' : serverTime,
+				'citizenId' : '{{.CitizenId}}',
+				'stateId' : '{{.StateId}}',
+				'signature1': $('#signature1').val(),
+				'signature2': $('#signature2').val(),
+				'signature3': $('#signature3').val()
+			},
+			dataType: 'json',
+			crossDomain: true,
+			success: function(data) { send_to_net_success(data) },
+			error: function(xhr, status, error) {
+				Alert("Error", error, "error");
+			}
+		});
+	} );
+</script>
+	<div class="content-heading">
+		{{if .DataPage.name}}Edit{{else}}New{{end}} Page
+	</div>
+	<ol class="breadcrumb">
+	   <li><a href='#' onclick="load_page('interface')">Interface</a></li>
+	</ol>
+
+<div class="row">
+	<div class="col-md-8">
+		<!-- START panel-->
+		<div class="panel panel-primary" data-sweet-alert>
+	
+		 <div class="panel-heading">
+			<div class="panel-title">
+				Page
+			</div>
+		 </div>
+		 <div class="panel-body">
+			<form role="form">
+			   <div class="form-group">
+				   <label>Name</label>
+				   {{if .DataPage.name}} <p class="form-control-static">{{.DataPage.name}}</p> <input type="hidden" class="form-control" id="page_name" value="{{.DataPage.name}}"> {{else}} <input type="text" class="form-control" id="page_name"> {{end}}
+			   </div>
+			   <div class="form-group">
+				   <label>Value</label>
+				   <pre class="textEditor">
+						<code></code>
+						<section id="textEditor">{{.DataPage.value}}</section>
+					</pre>
+				   <textarea id="page_value" class="form-control hidden"></textarea>
+			   </div>
+			   <div class="form-group">
+				   <label>Menu</label>
+				   <select class="form-control" id="page_menu">
+					 {{range $data := .AllMenu }}
+						 <option value="{{index $data "name"}}"
+							{{if and $data $.DataPage.menu}}
+								{{if eq (index $data "name") $.DataPage.menu}}
+									selected
+								{{end}}
+							{{end}}
+						 >
+						 {{index $data "name"}}
+						 </option>
+					 {{end}}
+					</select>
+			   </div>
+			   <div class="form-group">
+				   <label>Conditions for change</label>
+				   <textarea class="form-control" id="page_conditions">{{.DataPage.conditions}}</textarea>
+			   </div>
+			</form>
+		 </div>
+		 <div class="panel-footer">
+		   <div class="clearfix">
+			  <div class="pull-right">
+				 <button type="button" class="btn btn-primary" id="send" data-tool="panel-refresh" data-toggle="tooltip" data-spinner="standard" onClick="preloader(this);">Save</button>
+			  </div>
+		   </div>
+		  </div>
+		</div>
+	</div>
+	<div class="col-md-4 two_col">
+		<div class="panel panel-primary" data-sweet-alert>
+			<div class="panel-heading">
+				<div class="panel-title">
+					Menu
+				</div>
+			</div>
+			<div class="panel-body">
+				<form id="DataMenu" role="form"></form>
+			</div>
+			<div class="panel-footer">
+			   <div class="clearfix">
+				  <div class="pull-left">
+					 <button type="button" class="btn btn-primary" onclick="EditMenu();">edit</button>
+					 <button type="button" id="DataMenuBtn" class="hidden" data-tool="panel-refresh" onClick="preloader(this);">edit</button>
+				  </div>
+			   </div>
+		  	</div>
+		</div>
+		<!-- END panel-->
+	</div>
+</div>
+
+<input type="hidden" id="global" value="{{.Global}}">
+
+{{template "signatures".}}
+
+
+{{end}}

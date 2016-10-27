@@ -1,0 +1,144 @@
+{{ define "editTable" }}
+<script>
+	var serverTime;
+
+	$('#send, #sendperm').bind('click', function () {
+
+		$.get( 'ajax?controllerName=GetServerTime', function (data) {
+			serverTime = data.time;
+			$("#for-signature").val('{{.TxTypeId}},'+serverTime+',{{.CitizenId}},{{.StateId}},{{.TableName}},'+$("#general_update").val()+','+$("#insert").val()+','+$("#new_column").val());
+			doSign();
+			$("#send_to_net").trigger("click");
+		}, "json" );
+	} );
+
+	$('#send_to_net').bind('click', function () {
+		$.ajax({
+			type: 'POST',
+			url: 'ajax?controllerName=saveQueue',
+			data: {
+				'table_name' : '{{.TableName}}',
+				'general_update' : $("#general_update").val(),
+				'insert' : $("#insert").val(),
+				'new_column' : $("#new_column").val(),
+				'type' : '{{.TxType}}',
+				'time' : serverTime,
+				'citizenId' : '{{.CitizenId}}',
+				'stateId' : '{{.StateId}}',
+				'signature1': $('#signature1').val(),
+				'signature2': $('#signature2').val(),
+				'signature3': $('#signature3').val()
+			},
+			dataType: 'json',
+			crossDomain: true,
+			success: function(data) { send_to_net_success(data) },
+			error: function(xhr, status, error) {
+				Alert("Error", error, "error");
+			}
+		});
+	} );
+</script>
+	<div class="content-heading">
+		{{if .TableName}}Edit{{else}}New{{end}} Table
+	</div>
+	<ol class="breadcrumb">
+	   <li><a href="#" onclick="load_page('listOfTables', {global: {{.Global}}})">List Of Tables</a></li>
+	</ol>
+	<!-- START panel-->
+	<div class="panel panel-default">
+	 <div class="panel-heading">
+	 	<div class="panel-title">
+			{{index .TableData "name"}}
+		</div>
+	 </div>
+	 <div class="panel-body">
+		<div class="table-responsive">
+			<table class="table table-striped table-bordered table-hover">
+			  <tbody>
+			  <tr>
+				  <td>name</td>
+				  <td>permissions</td>
+				  <td width="50"></td>
+			  </tr>
+			  {{ range $name, $permissions := .ColumnsAndPermissions }}
+				 <tr>
+					 <td class="thead"><strong>{{$name}}</strong></td>
+					 <td><strong>{{$permissions}}</strong></td>
+					 <td><button class="btn btn-primary" onclick="load_page('editColumn', {tableName: {{index $.TableData "name"}}, columnName: {{$name}} } )">Edit</button></td>
+				 </tr>
+			  {{end}}
+			  </tbody>
+		   </table>
+		</div>
+	 </div>
+
+	 <div class="panel-footer">
+	   <div class="clearfix">
+		  <div class="pull-left">
+
+		  </div>
+		  <div class="pull-left">
+			 <button type="button" class="btn btn-primary" onclick="load_page('newColumn', {tableName: {{index .TableData "name"}}} )">Add column</button>
+		  </div>
+	   </div>
+	  </div>
+	</div>
+
+
+
+<!-- START panel-->
+<div class="panel panel-default" data-sweet-alert>
+	<div class="panel-heading">
+		<div class="panel-title">
+			Table permission
+		</div>
+	</div>
+	<div class="panel-body">
+		<form role="form">
+			<div class="form-group">
+				<label>insert</label>
+				<textarea class="form-control" id="insert">{{.TablePermission.insert}}</textarea>
+			</div>
+			<div class="form-group">
+				<label>new_column</label>
+				<textarea class="form-control" id="new_column">{{.TablePermission.new_column}}</textarea>
+			</div>
+		</form>
+	</div>
+	<div class="panel-footer">
+		<div class="clearfix">
+			<div class="pull-right">
+				<button type="button" class="btn btn-primary" id="send" data-tool="panel-refresh" data-toggle="tooltip" data-spinner="standard" onClick="preloader(this);" >Save</button>
+			</div>
+		</div>
+	</div>
+</div>
+<!-- END panel-->
+
+<!-- START panel-->
+<div class="panel panel-default" data-sweet-alert>
+ <div class="panel-heading">
+	<div class="panel-title">
+		Conditions for changing permissions
+	</div>
+ </div>
+	<div class="panel-body">
+		<form role="form">
+			<div class="form-group">
+				<textarea class="form-control" id="general_update">{{.TablePermission.general_update}}</textarea>
+			</div>
+		</form>
+	</div>
+ <div class="panel-footer">
+   <div class="clearfix">
+	  <div class="pull-right">
+		 <button type="button" class="btn btn-primary" id="sendperm" data-tool="panel-refresh" data-toggle="tooltip" data-spinner="standard" onClick="preloader(this);" >Save</button>
+	  </div>
+   </div>
+  </div>
+</div>
+<!-- END panel-->
+
+{{template "signatures".}}
+
+{{end}}

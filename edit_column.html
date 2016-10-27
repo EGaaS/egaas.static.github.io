@@ -1,0 +1,87 @@
+{{ define "editColumn" }}
+<script>
+
+	var serverTime;
+
+	$('#send').bind('click', function () {
+
+		$.get( 'ajax?controllerName=GetServerTime', function (data) {
+			serverTime = data.time;
+			$("#for-signature").val('{{.TxTypeId}},'+serverTime+',{{.CitizenId}},{{.StateId}},{{.TableName}},'+$('#column_name').val()+','+$('#permissions').val(){{if not .ColumnName}}+','+($("#index").is(":checked") ? "1" : "0"){{end}});
+			doSign();
+			$("#send_to_net").trigger("click");
+		}, "json" );
+	} );
+
+	$('#send_to_net').bind('click', function () {
+		$.ajax({
+			type: 'POST',
+			url: 'ajax?controllerName=saveQueue',
+			data: {
+				'table_name' : '{{.TableName}}',
+				'column_name' : $('#column_name').val(),
+				'permissions' : $('#permissions').val(),
+				'index' : ($("#index").is(":checked") ? "1" : "0"),
+				'type' : '{{.TxType}}',
+				'time' : serverTime,
+				'citizenId' : '{{.CitizenId}}',
+				'stateId' : '{{.StateId}}',
+				'signature1': $('#signature1').val(),
+				'signature2': $('#signature2').val(),
+				'signature3': $('#signature3').val()
+			},
+			dataType: 'json',
+			crossDomain: true,
+			success: function(data) { send_to_net_success(data) },
+			error: function(xhr, status, error) {
+				Alert("Error", error, "error");
+			}
+		});
+	} );
+</script>
+	<div class="content-heading">
+		{{if .ColumnName}}Edit{{else}}New{{end}} Column
+	</div>
+	<ol class="breadcrumb">
+		<li><a href="#" onclick="load_page('listOfTables')">List Of Tables</a></li>
+	   <li><a href="#" onclick="load_page('editTable', {name: {{.TableName}}})">{{.TableName}}</a></li>
+	</ol>
+	<!-- START panel-->
+	<div class="panel panel-default" data-sweet-alert>
+	 <div class="panel-heading">
+	 	<div class="panel-title">
+			{{.TableName}}
+		</div>
+	 </div>
+	 <div class="panel-body">
+	 	<form role="form">
+		   <div class="form-group">
+			   <label>Name</label>
+			   {{if .ColumnName}} <p class="form-control-static">{{.ColumnName}}</p> <input type="hidden" class="form-control" id="column_name" value="{{.ColumnName}}"> {{else}} <input type="text" class="form-control" id="column_name"> {{end}}
+		   </div>
+			{{if not .ColumnName}}<div class="form-group">
+				<label>Index</label>
+				<input type="checkbox" id="index">
+			</div>{{end}}
+			<div class="form-group">
+				<label>Permissions</label>
+				<textarea class="form-control" id="permissions">{{.ColumnPermission}}</textarea>
+			</div>
+		</form>
+	 </div>
+	 <div class="panel-footer">
+	   <div class="clearfix">
+		  <div class="pull-left">
+
+		  </div>
+		  <div class="pull-left">
+			 <button type="button" class="btn btn-primary" id="send" data-tool="panel-refresh" onClick="preloader(this);">Send</button>
+		  </div>
+	   </div>
+	  </div>
+	</div>
+	<!-- END panel-->
+
+{{template "signatures".}}
+
+{{end}}

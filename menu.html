@@ -1,0 +1,872 @@
+<script>
+	var lastBlock = 1;
+	var BlockNumberID = $("#BlockNumber");
+	
+	function updateBlockNumber(){
+		console.log('update');
+		$.ajax({
+			type: 'POST',
+			url: 'ajax?json=ajax_explorer',
+			data: {
+				latest: lastBlock
+			},
+			dataType: 'json',
+			crossDomain: true,
+			success: function(data) {
+				lastBlock = data.latest;
+				BlockNumberID.text(lastBlock);
+				IgnoreTimer = setTimeout(updateBlockNumber, 4000);
+			},
+			error: function(xhr, status, error) {
+				IgnoreTimer = setTimeout(updateBlockNumber, 4000);
+			}
+		});
+	}
+	
+	updateBlockNumber();
+	
+	// TOGGLE STATE
+	// -----------------------------------
+	
+	(function(window, document, $, undefined){
+	
+	  $(function(){
+	
+		var $body = $('body');
+			toggle = new StateToggler();
+	
+		$('[data-toggle-state]')
+		  .on('click', function (e) {
+			// e.preventDefault();
+			e.stopPropagation();
+			var element = $(this),
+				classname = element.data('toggleState'),
+				target = element.data('target'),
+				noPersist = (element.attr('data-no-persist') !== undefined);
+	
+			// Specify a target selector to toggle classname
+			// use body by default
+			var $target = target ? $(target) : $body;
+	
+			if(classname) {
+			  if( $target.hasClass(classname) ) {
+				$target.removeClass(classname);
+				if( ! noPersist)
+				  toggle.removeState(classname);
+			  }
+			  else {
+				$target.addClass(classname);
+				if( ! noPersist)
+				  toggle.addState(classname);
+			  }
+	
+			}
+			// some elements may need this when toggled class change the content size
+			// e.g. sidebar collapsed mode and jqGrid
+			$(window).resize();
+	
+		});
+	
+	  });
+	
+	  // Handle states to/from localstorage
+	  window.StateToggler = function() {
+	
+		var storageKeyName  = 'jq-toggleState';
+	
+		// Helper object to check for words in a phrase //
+		var WordChecker = {
+		  hasWord: function (phrase, word) {
+			return new RegExp('(^|\\s)' + word + '(\\s|$)').test(phrase);
+		  },
+		  addWord: function (phrase, word) {
+			if (!this.hasWord(phrase, word)) {
+			  return (phrase + (phrase ? ' ' : '') + word);
+			}
+		  },
+		  removeWord: function (phrase, word) {
+			if (this.hasWord(phrase, word)) {
+			  return phrase.replace(new RegExp('(^|\\s)*' + word + '(\\s|$)*', 'g'), '');
+			}
+		  }
+		};
+	
+		// Return service public methods
+		return {
+		  // Add a state to the browser storage to be restored later
+		  addState: function(classname){
+			var data = $.localStorage.get(storageKeyName);
+	
+			if(!data)  {
+			  data = classname;
+			}
+			else {
+			  data = WordChecker.addWord(data, classname);
+			}
+	
+			$.localStorage.set(storageKeyName, data);
+		  },
+	
+		  // Remove a state from the browser storage
+		  removeState: function(classname){
+			var data = $.localStorage.get(storageKeyName);
+			// nothing to remove
+			if(!data) return;
+	
+			data = WordChecker.removeWord(data, classname);
+	
+			$.localStorage.set(storageKeyName, data);
+		  },
+	
+		  // Load the state string and restore the classlist
+		  restoreState: function($elem) {
+			var data = $.localStorage.get(storageKeyName);
+	
+			// nothing to restore
+			if(!data) return;
+			$elem.addClass(data);
+		  }
+	
+		};
+	  };
+	
+	})(window, document, window.jQuery);
+
+	// SIDEBAR
+	// -----------------------------------
+	
+	
+	(function(window, document, $, undefined){
+	
+	  var $win;
+	  var $html;
+	  var $body;
+	  var $sidebar;
+	  var mq;
+	
+	  $(function(){
+	
+		$win     = $(window);
+		$html    = $('html');
+		$body    = $('body');
+		$sidebar = $('.sidebar');
+		mq       = APP_MEDIAQUERY;
+	
+		// AUTOCOLLAPSE ITEMS
+		// -----------------------------------
+	
+		var sidebarCollapse = $sidebar.find('.collapse');
+		sidebarCollapse.on('show.bs.collapse', function(event){
+	
+		  event.stopPropagation();
+		  if ( $(this).parents('.collapse').length === 0 )
+			sidebarCollapse.filter('.in').collapse('hide');
+	
+		});
+	
+		// SIDEBAR ACTIVE STATE
+		// -----------------------------------
+	
+		// Find current active item
+		var currentItem = $('.sidebar .active').parents('li');
+	
+		// hover mode don't try to expand active collapse
+		if ( ! useAsideHover() )
+		  currentItem
+			.addClass('active')     // activate the parent
+			.children('.collapse')  // find the collapse
+			.collapse('show');      // and show it
+	
+		// remove this if you use only collapsible sidebar items
+		$sidebar.find('li > a + ul').on('show.bs.collapse', function (e) {
+		  if( useAsideHover() ) e.preventDefault();
+		});
+	
+		// SIDEBAR COLLAPSED ITEM HANDLER
+		// -----------------------------------
+	
+	
+		var eventName = isTouch() ? 'click' : 'mouseenter' ;
+		var subNav = $();
+		$sidebar.on( eventName, '.nav > li', function() {
+	
+		  if( isSidebarCollapsed() || useAsideHover() ) {
+	
+			subNav.trigger('mouseleave');
+			subNav = toggleMenuItem( $(this) );
+	
+			// Used to detect click and touch events outside the sidebar
+			sidebarAddBackdrop();
+		  }
+	
+		});
+	
+		var sidebarAnyclickClose = $sidebar.data('sidebarAnyclickClose');
+	
+		// Allows to close
+		if ( typeof sidebarAnyclickClose !== 'undefined' ) {
+	
+		  $('.wrapper').on('click.sidebar', function(e){
+			// don't check if sidebar not visible
+			if( ! $body.hasClass('aside-toggled')) return;
+	
+			var $target = $(e.target);
+			if( ! $target.parents('.aside').length && // if not child of sidebar
+				! $target.is('#user-block-toggle') && // user block toggle anchor
+				! $target.parent().is('#user-block-toggle') // user block toggle icon
+			  ) {
+					$body.removeClass('aside-toggled');
+			}
+	
+		  });
+		}
+	
+	  });
+	
+	  function sidebarAddBackdrop() {
+		var $backdrop = $('<div/>', { 'class': 'dropdown-backdrop'} );
+		$backdrop.insertAfter('.aside').on("click mouseenter", function () {
+		  removeFloatingNav();
+		});
+	  }
+	
+	  // Open the collapse sidebar submenu items when on touch devices
+	  // - desktop only opens on hover
+	  function toggleTouchItem($element){
+		$element
+		  .siblings('li')
+		  .removeClass('open')
+		  .end()
+		  .toggleClass('open');
+	  }
+	
+	  // Handles hover to open items under collapsed menu
+	  // -----------------------------------
+	  function toggleMenuItem($listItem) {
+	
+		removeFloatingNav();
+	
+		var ul = $listItem.children('ul');
+	
+		if( !ul.length ) return $();
+		if( $listItem.hasClass('open') ) {
+		  toggleTouchItem($listItem);
+		  return $();
+		}
+	
+		var $aside = $('.aside');
+		var $asideInner = $('.aside-inner'); // for top offset calculation
+		// float aside uses extra padding on aside
+		var mar = parseInt( $asideInner.css('padding-top'), 0) + parseInt( $aside.css('padding-top'), 0);
+	
+		var subNav = ul.clone().appendTo( $aside );
+	
+		toggleTouchItem($listItem);
+	
+		var itemTop = ($listItem.position().top + mar) - $sidebar.scrollTop();
+		var vwHeight = $win.height();
+	
+		subNav
+		  .addClass('nav-floating')
+		  .css({
+			position: isFixed() ? 'fixed' : 'absolute',
+			top:      itemTop,
+			bottom:   (subNav.outerHeight(true) + itemTop > vwHeight) ? 0 : 'auto'
+		  });
+	
+		subNav.on('mouseleave', function() {
+		  toggleTouchItem($listItem);
+		  subNav.remove();
+		});
+	
+		return subNav;
+	  }
+	
+	  function removeFloatingNav() {
+		$('.sidebar-subnav.nav-floating').remove();
+		$('.dropdown-backdrop').remove();
+		$('.sidebar li.open').removeClass('open');
+	  }
+	
+	  function isTouch() {
+		return $html.hasClass('touch');
+	  }
+	  function isSidebarCollapsed() {
+		return $body.hasClass('aside-collapsed') || $body.hasClass('aside-collapsed-text');
+	  }
+	  function isSidebarToggled() {
+		return $body.hasClass('aside-toggled');
+	  }
+	  function isMobile() {
+		return $win.width() < mq.tablet;
+	  }
+	  function isFixed(){
+		return $body.hasClass('layout-fixed');
+	  }
+	  function useAsideHover() {
+		return $body.hasClass('aside-hover');
+	  }
+	
+	})(window, document, window.jQuery);
+	
+	function HideMenu() {
+		if ($("body").hasClass("aside-toggled")) {
+			$(".sidebar-toggle").click();
+		}
+	}
+</script>
+<!-- top navbar-->
+<header class="topnavbar-wrapper">
+ <!-- START Top Navbar-->
+ <nav role="navigation" class="navbar topnavbar">
+	<!-- START navbar header-->
+	<div class="navbar-header">
+	   <a href="#" class="navbar-brand" onclick="dl_navigate('beta'); HideMenu();">
+		  <div class="brand-logo">
+			 <!--<span class="beta">Testing</span>-->
+			 <img src="static/img/logo.svg" alt="App Logo" class="img-responsive">
+		  </div>
+		  <div class="brand-logo-collapsed">
+			 <!--<span class="beta">Testing</span>-->
+			 <img src="static/img/logo_null.svg" alt="App Logo" class="img-responsive">
+		  </div>
+	   </a>
+	</div>
+	<!-- END navbar header-->
+	<!-- START Nav wrapper-->
+	<div class="nav-wrapper">
+	   <!-- START Left navbar-->
+	   <ul class="nav navbar-nav">
+		  <li>
+			 <!-- Button used to collapse the left sidebar. Only visible on tablet and desktops-->
+			 <!--<a href="#" data-trigger-resize="" data-toggle-state="aside-collapsed" class="hidden-xs">
+				<em class="fa fa-navicon"></em>
+			 </a>-->
+			 <!-- Button to show/hide the sidebar on mobile. Visible on mobile only.-->
+			 <a href="#" data-toggle-state="aside-toggled" data-no-persist="true" class="visible-xs sidebar-toggle">
+				<em class="fa fa-navicon"></em>
+			 </a>
+		  </li>
+		  <!-- START User avatar toggle-->
+		  <li>
+			 <!-- Button used to collapse the left sidebar. Only visible on tablet and desktops-->
+			 {{if ne .Data.CitizenId 0}}
+			  <a id="user-block-toggle" href="#user-block" data-toggle="collapse">
+				<em class="icon-user"></em>
+			 </a>
+			 {{end}}
+		  </li>
+		  <!-- END User avatar toggle-->
+	   </ul>
+	   <!-- END Left navbar-->
+	   <!-- START Right Navbar-->
+	   <ul class="nav navbar-nav navbar-right">
+		  <li class="dropdown dropdown-list">
+			 <a id="BlockNumber" href="#" onClick="load_page('block_explorer', {singlePage: 1}); HideMenu();">0</a>
+		  </li>
+		  <!-- START Alert menu-->
+		  <li class="dropdown dropdown-list">
+			 <a href="#" data-toggle="dropdown">
+				<em class="icon-bell"></em>
+				<!--<div class="label label-danger">11</div>-->
+			 </a>
+			 <!-- START Dropdown menu-->
+			 <ul class="dropdown-menu animated flipInX">
+				<li>
+				   <!-- START list group-->
+				   <div class="list-group">
+					  <div class="list-group-item">
+						 <small>No notifications</small>
+					  </div>
+					  <!--<a href="#" class="list-group-item">
+						 <small>More notifications</small>
+						 <span class="label label-danger pull-right">14</span>
+					  </a>-->
+				   </div>
+				   <!-- END list group-->
+				</li>
+			 </ul>
+			 <!-- END Dropdown menu-->
+		  </li>
+		  <!-- END Alert menu-->
+		  <!-- START Offsidebar button-->
+		  <li>
+			 <a href="" onclick="return logout()">
+				<em class="icon-logout"></em>
+			 </a>
+		  </li>
+		  <!-- END Offsidebar menu-->
+	   </ul>
+	   <!-- END Right Navbar-->
+	</div>
+	<!-- END Nav wrapper-->
+ </nav>
+ <!-- END Top Navbar-->
+</header>
+<!-- sidebar-->
+<aside class="aside">
+ <!-- START Sidebar (left)-->
+ <div class="aside-inner">
+	<nav data-sidebar-anyclick-close="" class="sidebar">
+	   <!-- START sidebar nav-->
+	   <ul class="nav">
+		  <!-- START user info-->
+		  <li class="has-user-block">
+			 <div id="user-block" class="collapse">
+				<div class="item user-block">
+				   <!-- User picture-->
+				   <div class="user-block-picture">
+					  <div class="user-block-status">
+						 {{if .CitizenAvatar}}<img id="Avatar" alt="Avatar" style="width: 60px; height: 60px" class="img-thumbnail img-circle">
+						 <script>document.getElementById('Avatar').setAttribute( 'src', '{{.CitizenAvatar}}' ); </script>
+						 {{end}}
+					  </div>
+				   </div>
+				   <!-- Name and Job-->
+				   <div class="user-block-info">
+					  <span class="user-block-name">{{.CitizenName}} <a href="#" onclick="load_template('citizen_profile'); HideMenu();"><i class="fa fa-angle-down"></i></a></span>
+					   <img id="menu-flag" height="15"><script>document.getElementById('menu-flag').setAttribute( 'src', '{{.StateFlag}}' ); </script>
+					   <span class="user-block-role">{{.StateName}}</span>
+				   </div>
+				</div>
+			 </div>
+		  </li>
+		  <!-- END user info-->
+		  <!-- Iterates over all sidebar items-->
+		  <!--<li class="nav-heading ">
+			 <span data-localize="sidebar.heading.HEADER">Main Navigation</span>
+		  </li>-->
+		  <li class="anonym {{if not .Menu}}active{{end}}">
+			 <a href="#da" title="EGS-wallet" data-toggle="collapse" class="toggle-hover">
+				<!--<div class="pull-right label label-info">2</div>-->
+				<em class="icon-user"></em>
+				<span>EGS-wallet</span>
+			 </a>
+			 <ul id="da" class="nav sidebar-subnav collapse{{if not .Menu}} in{{end}}">
+				<li class="sidebar-subnav-header">EGS-wallet</li>
+				<li class="dashboard_anonym">
+				   <a {{if not .Menu}}class="active"{{end}} href="#" title="Dashboard" onclick="dl_navigate0('dashboardAnonym'); HideMenu();">
+					  <span>Dashboard</span>
+				   </a>
+				</li>
+				<li class="anonym_money_transfer">
+				   <a href="#" title="Money transfer" onclick="dl_navigate0('anonymMoneyTransfer'); HideMenu();">
+					  <span>Money transfer</span>
+				   </a>
+				</li>
+				<li class="anonym_history">
+				   <a href="#" title="History"  onclick="load_page('history'); HideMenu();">
+					  <span>History</span>
+				   </a>
+				</li>
+				<li class="anonym_block_generation">
+				   <a href="#"  onclick="dl_navigate0('forging'); HideMenu();" title="Forging">
+					  <span>Forging</span>
+				   </a>
+				</li>
+				 <li class="anonym_new_state">
+					 <a href="#" title="Create a new state" onClick="load_page('newState');HideMenu();">
+						 <span>Create a new state</span>
+					 </a>
+				 </li>
+				{{if .CanCitizen}}
+				 <li class="anonym_request_citizen">
+					 <a href="#" title="Smart request for citizen status" onClick="load_page('smart_request_citizen');HideMenu();">
+						 <span>Request for citizenship</span>
+					 </a>
+				 </li>
+				{{end}}
+				 <!--<li class="anonym_map">
+					 <a href="#" title="Map" onClick="dl_navigate('map'); HideMenu();">
+						 <span>Map</span>
+					 </a>
+				 </li>
+				 <li class="anonym_avatar">
+					 <a href="#" title="Avatar" onClick="dl_navigate('avatar'); HideMenu();">
+						 <span>Avatar</span>
+					 </a>
+				 </li>-->
+			 </ul>
+		  </li>
+
+		  {{if .Menu}}
+		  <li class="citizen active">
+			 <a href="#dc" title="Citizen" data-toggle="collapse" class="toggle-hover">
+				<em class="icon-home"></em>
+				<span>Citizen</span>
+			 </a>
+			 <ul id="dc" class="nav sidebar-subnav collapse in">
+
+				<li class="sidebar-subnav-header">Citizen</li>
+
+				 {{noescape .Menu}}
+
+				
+				 <!--
+				 Tables
+				 <li class="state_parameters">
+					 <a href="#" title="state_name" onClick="load_page('listOfTables');HideMenu();">
+						 <span>{{.Data.StateName}}</span>
+					 </a>
+				 </li>
+				 <li class="state_parameters">
+					 <a href="#" title="state_name" onClick="load_page('globalTables');HideMenu();">
+						 <span>globalTables</span>
+					 </a>
+				 </li>
+				 <li class="state_parameters">
+					 <a href="#" title="state_name" onClick="load_page('sysTables');HideMenu();">
+						 <span>sysTables</span>
+					 </a>
+				 </li>
+
+
+				 Smart contracts
+				 <li class="state_parameters">
+					 <a href="#" title="state_name" onClick="load_page('stateContracts');HideMenu();">
+						 <span>{{.Data.StateName}}</span>
+					 </a>
+				 </li>
+				 <li class="state_parameters">
+					 <a href="#" title="state_name" onClick="load_page('globalContracts');HideMenu();">
+						 <span>globalTables</span>
+					 </a>
+				 </li>
+				 <li class="state_parameters">
+					 <a href="#" title="state_name" onClick="load_page('sysContracts');HideMenu();">
+						 <span>sysTables</span>
+					 </a>
+				 </li>
+		   <br>
+
+
+
+                 <li class="state_parameters">
+                     <a href="#" title="state_parameters" onClick="load_page('stateParameters');HideMenu();">
+                         <span>state_parameters</span>
+                     </a>
+                 </li>
+                 <li class="state_smart_laws">
+                     <a href="#" title="state_smart_laws" onClick="load_page('stateSmartLaws');HideMenu();">
+                         <span>stateSmartLaws</span>
+                     </a>
+                 </li>
+                 <li class="state_laws">
+                     <a href="#" title="state_laws" onClick="load_page('stateLaws');HideMenu();">
+                         <span>stateLaws</span>
+                     </a>
+                 </li>
+                 <li class="new_table">
+                     <a href="#" title="new_table" onClick="load_page('newTable');HideMenu();">
+                         <span>newTable</span>
+                     </a>
+                 </li>
+                 <li class="table_list">
+                     <a href="#" title="table_list" onClick="load_page('tableList');HideMenu();">
+                         <span>tableList</span>
+                     </a>
+                 </li>
+                 -->
+
+
+                <!--li class="dashboard_citizen">
+                   <a href="#dashboard_citizen" title="Dashboard" onClick="HideMenu();">
+                      <span>Dashboard</span>
+                   </a>
+                </li>
+                <li class="citizen_money_transfer">
+                   <a href="#citizen_money_transfer" title="Money transfer" onClick="HideMenu();">
+                      <span>Money transfer</span>
+                   </a>
+                </li>
+                <li class="citizen_bill_payment">
+                   <a href="#citizen_bill_payment" title="Bill Payment" onClick="HideMenu();">
+                      <span>Bill Payment</span>
+                   </a>
+                </li>
+                <li class="citizen_admission_high_school">
+                   <a href="#citizen_admission_high_school" title="Admission to high school" onClick="HideMenu();">
+                      <span>Admission to high school</span>
+                   </a>
+                </li>
+                <li class="citizen_new_company">
+                   <a href="#citizen_new_company" title="New company" onClick="HideMenu();">
+                      <span>New company</span>
+                   </a>
+                </li>
+                <li class="citizen_property">
+                   <a href="#citizen_property" title="My property" onClick="HideMenu();">
+                      <span>My property</span>
+                   </a>
+                </li>
+                <li class="citizen_political_party">
+                   <a href="#citizen_political_party" title="Сreate a political party" onClick="HideMenu();">
+                      <span>Сreate a political party</span>
+                   </a>
+                </li>
+                <li class="citizen_inheritance">
+                   <a href="#citizen_inheritance" title="Inheritance" onClick="HideMenu();">
+                      <span>Inheritance</span>
+                   </a>
+                </li>
+                <li class="citizen_marriage_registration">
+                   <a href="#citizen_marriage_registration" title="Marriage registration" onClick="HideMenu();">
+                      <span>Marriage registration</span>
+                   </a>
+                </li>
+                <li class="citizen_divorce">
+                   <a href="#citizen_divorce" title="Divorce" onClick="HideMenu();">
+                      <span>Divorce</span>
+                   </a>
+                </li-->
+			 </ul>
+		  </li>
+		  {{end}}
+
+		   <li id="DemoButton">
+			   <a href="#" href="#" onClick="load_page('system_info'); HideMenu();" title="Government" data-toggle="collapse" class="toggle-hover">
+				   <em class="icon-map"></em>
+				   <span>System</span>
+			   </a>
+		   </li>
+		  <!--<li class="company Demo">
+			 <a href="#dco" title="Company" data-toggle="collapse" class="toggle-hover">
+				<em class="fa fa-building-o"></em>
+				<span>Company</span>
+			 </a>
+			 <ul id="dco" class="nav sidebar-subnav collapse">
+				<li class="sidebar-subnav-header">Company</li>
+				<li class="dashboard_company">
+				   <a href="#dashboard_company" title="Dashboard" onClick="HideMenu();">
+					  <span>Dashboard</span>
+				   </a>
+				</li>
+				<li class="company_new_company">
+				   <a href="#company_new_company" title="New company" onClick="HideMenu();">
+					  <span>New company</span>
+				   </a>
+				</li>
+				<li class="company_crowdfunding">
+				   <a href="#company_crowdfunding" title="CrowdFunding" onClick="HideMenu();">
+					  <span>CrowdFunding</span>
+				   </a>
+				</li>
+				<li class="company_new_shares">
+				   <a href="#company_new_shares" title="New shares" onClick="HideMenu();">
+					  <span>New shares</span>
+				   </a>
+				</li>
+				<li class="company_new_good">
+				   <a href="#company_new_good" title="New good" onClick="HideMenu();">
+					  <span>New good</span>
+				   </a>
+				</li>
+				<li class="company_new_item">
+				   <a href="#company_new_item" title="New item" onClick="HideMenu();">
+					  <span>New item</span>
+				   </a>
+				</li>
+				<li class="company_new_order">
+				   <a href="#company_new_order" title="New order" onClick="HideMenu();">
+					  <span>New order</span>
+				   </a>
+				</li>
+				<li class="company_currency_exchange">
+				   <a href="#company_currency_exchange" title="Currency Exchange" onClick="HideMenu();">
+					  <span>Currency Exchange</span>
+				   </a>
+				</li>
+				<li class="company_shares_exchange">
+				   <a href="#company_shares_exchange" title="Shares Exchange" onClick="HideMenu();">
+					  <span>Shares Exchange</span>
+				   </a>
+				</li>
+			 </ul>
+		  </li>
+		  <li class="health Demo">
+			 <a href="#dh" title="Health" data-toggle="collapse" class="toggle-hover">
+				<em class="fa fa-medkit"></em>
+				<span>Health</span>
+			 </a>
+			 <ul id="dh" class="nav sidebar-subnav collapse">
+				<li class="sidebar-subnav-header">Health</li>
+				<li class="dashboard_health">
+				   <a href="#dashboard_health" title="Dashboard" onClick="HideMenu();">
+					  <span>Dashboard</span>
+				   </a>
+				</li>
+				<li class="health_patient">
+				   <a href="#dhp" title="Patient" data-toggle="collapse">
+					  <em class="fa fa-angle-right"></em>
+					  <span>Patient</span>
+				   </a>
+				   <ul id="dhp" class="nav sidebar-subnav collapse">
+					<li class="sidebar-subnav-header">Patient</li>
+					<li class="health_patient_d">
+					   <a href="#health_patient" title="Dashboard" onClick="HideMenu();">
+						  <span>Dashboard</span>
+					   </a>
+					</li>
+					<li class="health_vital_signs">
+					   <a href="#health_vital_signs" title="Vital Signs" onClick="HideMenu();">
+						  <span>Vital Signs</span>
+					   </a>
+					</li>
+					<li class="health_symptom">
+					   <a href="#health_symptom" title="Add symptom" onClick="HideMenu();">
+						  <span>Add symptom</span>
+					   </a>
+					</li>
+					<li class="health_entries_clinic">
+					   <a href="#health_entries_clinic" title="Write to the clinic" onClick="HideMenu();">
+						  <span>Write to the clinic</span>
+					   </a>
+					</li>
+					<li class="health_procedure">
+					   <a href="#health_procedure" title="Add procedure" onClick="HideMenu();">
+						  <span>Add procedure</span>
+					   </a>
+					</li>
+				   </ul>
+				</li>
+				<li class="health_facility">
+				   <a href="#health_facility" title="Health facility" onClick="HideMenu();">
+					  <span>Health facility</span>
+				   </a>
+				</li>
+			 </ul>
+		  </li>
+		  <li class="cb Demo">
+			 <a href="#dcb" title="CB" data-toggle="collapse" class="toggle-hover">
+				<em class="fa fa-money"></em>
+				<span>CB</span>
+			 </a>
+			 <ul id="dcb" class="nav sidebar-subnav collapse">
+				<li class="sidebar-subnav-header">CB</li>
+				<li class="dashboard_cb">
+				   <a href="#dashboard_cb" title="Dashboard" onClick="HideMenu();">
+					  <span>Dashboard</span>
+				   </a>
+				</li>
+				<li class="cb_citizens">
+				   <a href="#cb_citizens" title="Citizens" onClick="HideMenu();">
+					  <span>Citizens</span>
+				   </a>
+				</li>
+				<li class="cb_representatives">
+				   <a href="#cb_representatives" title="Representatives" onClick="HideMenu();">
+					  <span>Representatives</span>
+				   </a>
+				</li>
+				<li class="cb_delegate">
+				   <a href="#cb_delegate" title="Delegate" onClick="HideMenu();">
+					  <span>Delegate</span>
+				   </a>
+				</li>
+				<li class="cb_select_emission">
+				   <a href="#cb_select_emission" title="Emission" onClick="HideMenu();">
+					  <span>Emission</span>
+				   </a>
+				</li>
+				<li class="cb_currency_exchange">
+				   <a href="#cb_currency_exchange" title="Currency exchange" onClick="HideMenu();">
+					  <span>Currency exchange</span>
+				   </a>
+				</li>
+			 </ul>
+		  </li>
+		  <li class="gov Demo">
+			 <a href="#dg" title="Government" data-toggle="collapse" class="toggle-hover">
+				<em class="icon-map"></em>
+				<span>Government</span>
+			 </a>
+			 <ul id="dg" class="nav sidebar-subnav collapse">
+				<li class="sidebar-subnav-header">Government</li>
+				<li class="dashboard_gov">
+				   <a href="#dashboard_gov" title="Dashboard" onClick="HideMenu();">
+					  <span>Dashboard</span>
+				   </a>
+				</li>
+				<li class="gov_citizens">
+				   <a href="#dgc" title="Patient" data-toggle="collapse">
+					  <em class="fa fa-angle-right"></em>
+					  <span>Citizens</span>
+				   </a>
+				   <ul id="dgc" class="nav sidebar-subnav collapse">
+					<li class="sidebar-subnav-header">Citizens</li>
+					<li class="gov_citizens_d">
+					   <a href="#gov_citizens" title="Dashboard" onClick="HideMenu();">
+						  <span>Dashboard</span>
+					   </a>
+					</li>
+					<li class="gov_register_citizen">
+					   <a href="#gov_register_citizen" title="Register citizen" onClick="HideMenu();">
+						  <span>Register citizen</span>
+					   </a>
+					</li>
+					<li class="gov_register_property">
+					   <a href="#gov_register_property" title="Register property" onClick="HideMenu();">
+						  <span>Register property</span>
+					   </a>
+					</li>
+					<li class="gov_birth_statement">
+					   <a href="#gov_birth_statement" title="Birth statement" onClick="HideMenu();">
+						  <span>Birth statement</span>
+					   </a>
+					</li>
+					<li class="gov_date_death">
+					   <a href="#gov_date_death" title="Date of death" onClick="HideMenu();">
+						  <span>Date of death</span>
+					   </a>
+					</li>
+				   </ul>
+				</li>
+				<li class="gov_create_budget">
+				   <a href="#gov_create_budget" title="Create budget" onClick="HideMenu();">
+					  <span>Create budget</span>
+				   </a>
+				</li>
+				<li class="gov_settings">
+				   <a href="#gov_settings" title="Settings" onClick="HideMenu();">
+					  <span>Settings</span>
+				   </a>
+				</li>
+				<li class="gov_taxes">
+				   <a href="#gov_taxes" title="Taxes" onClick="HideMenu();">
+					  <span>Taxes</span>
+				   </a>
+				</li>
+				<li class="gov_currency_exchange">
+				   <a href="#gov_currency_exchange" title="Currency Exchange" onClick="HideMenu();">
+					  <span>Currency Exchange</span>
+				   </a>
+				</li>
+				<li class="gov_shares_exchange">
+				   <a href="#gov_shares_exchange" title="Shares Exchange" onClick="HideMenu();">
+					  <span>Shares Exchange</span>
+				   </a>
+				</li>
+			 </ul>
+		  </li>-->
+
+		  <!--<li id="DemoButton"><button class="btn btn-default btn-demo" type="button" onClick="Demo();"><span class="fa fa-eye"></span><em> Show opportunities</em></button><input id="demo" type="hidden" value="0"></li>-->
+	   </ul>
+	   <!-- END sidebar nav-->
+	</nav>
+ </div>
+ <!-- END Sidebar (left)-->
+</aside>
+<style>
+	#DemoButton {
+		display:none;
+	}
+</style>
+<script>
+	$(document).keydown(function(e){
+		'use strict';
+		
+		if (e.shiftKey === true && e.keyCode === 68) {
+			$("#DemoButton").show();
+		}
+	});
+</script>

@@ -1,0 +1,327 @@
+<style>
+	.tab-content {
+		border:0px;
+		padding:0px;
+	}
+	.panel.panel-default {
+		border-top:0px;
+		border-radius:0px 0px 4px 4px;
+	}
+	#message {
+		display:none;
+	}
+</style>
+<script language="JavaScript" type="text/javascript" src="static/js/keys.js"></script>
+<script>
+	$(".aside .nav li").removeClass("active");
+	$(".anonym, .anonym_request_citizen").addClass("active");
+	$(".wrapper").addClass("map");
+	
+	var arr = [];
+	var coords = [];
+	var selectbox = $("#countries");
+	var container = $("#fields");
+	var msg = $("#message");
+	var btn = $("#send");
+	var btns = $("#buttons");
+	var test = 65000;
+	console.log( test.toString(16));
+	
+	$.ajax({
+		type: 'GET',
+		url: '/ajax?controllerName=AjaxStatesList',
+		dataType: 'json',
+		crossDomain: true,
+		success: function(data) {
+			selectboxState(data);
+			regMap(JSON.parse(data[1].state_coords));
+		},
+		error: function(xhr, status, error) {
+			Alert("Error", error, "error");
+		}
+	});
+	
+	function Message(text) {
+		if (!text) {
+			msg.html('').hide();
+		} else {
+			msg.html(text).show();
+		}
+	}
+	
+	function showFields() {
+		arr = [];
+		msg.hide();
+		btns.show();
+		btn.prop("disabled", false);
+		$('[data-sweet-alert]').removeClass("whirl standard");
+	}
+	
+	function hideFields(text) {
+		Message(text);
+		btns.hide();
+		container.html("");
+		btn.prop("disabled", true);
+	}
+	
+	function changeCountry(elem) {
+		console.log("elem", elem);
+		var id = $("#countries").val();
+		Country(id);
+		$.ajax({
+			type: 'GET',
+			url: '/ajax?controllerName=AjaxStatesList',
+			dataType: 'json',
+			crossDomain: true,
+			success: function(data) {
+				regMap(JSON.parse(data[id].state_coords));
+			},
+			error: function(xhr, status, error) {
+				Alert("Error", error, "error");
+			}
+		});
+	}
+	
+	function Country(id) {
+		if (!id) {
+			id = 1;
+		}
+		msg.hide();
+		$("#refresh").click();
+		$.ajax({
+			type: 'GET',
+			url: 'ajax?json=ajax_smart_fields',
+			data: {
+				'state_id' : id,
+				'contract_name': '{{.TxType}}'
+			},
+			dataType: 'json',
+			crossDomain: true,
+			success: function(data) {
+				container.html("");
+				showFields();
+				container.prepend('<div class="form-group"><label for="price">Price</label><input id="price" type="text" class="form-control" value="' + data.price + ' EGS" disabled></div>');
+				if (localStorage.getItem('reqPrv') && localStorage.getItem('reqState')== id && data.fields.length == 0) {
+					if (data.approved == 0) {
+						//alert('The request is in the queue.');
+						hideFields();
+						Notify('The request is in the queue.', 'warning');
+					}
+					if (data.approved < 0) {
+						//alert('The request has been rejected.');
+						hideFields('The request has been rejected.');
+					}
+					if (data.approved == 1) {
+						//alert('The request has been accepted.');
+						hideFields();
+						Notify('The request has been accepted.', 'success');
+					}
+/*					if (data.approved > 1) {
+						var idz = id.toString(16);
+						if (idz.length & 1)
+							idz = '0' + idz;
+						var ciz = data.approved.toString(16);
+						if (ciz.length & 1)
+							ciz = '0' + ciz;
+							
+						//alert('Your Private key: ' + localStorage.getItem('reqPrv') + idz + ciz);
+						Alert("Citizenship Registration completed successfully!<br />Please accept our sincere congratulations!<br />Now you are a citizen of DayLight!", 'Your Private key: ' + localStorage.getItem('reqPrv') + idz + ciz, "success");
+					}*/
+//					return
+				}
+				
+				if (data.valid == false) {
+					$("#sorry").click();
+					btn.prop("disabled", true);
+				}
+				
+				if (data.fields.length) {
+					var fields = JSON.parse(data.fields);
+					
+					for (i = 0; i < fields.length; i++ ) {
+						if (fields[i].htmlType == "textinput") {
+							var el = '<div class="form-group"><label for="' + fields[i].name + '">' + fields[i].title + '</label><input id="' + fields[i].name + '" name="' + fields[i].name + '" type="text" class="form-control"></div>'
+						}
+						if (fields[i].htmlType == "calendar") {
+							var el = '<div class="form-group"><label for="' + fields[i].name + '">' + fields[i].title + '</label><div class="input-group date datetimepicker"><input id="' + fields[i].name + '" type="text" class="form-control"><span class="input-group-addon"><span class="fa fa-calendar"></span></span></div></div>'
+						}
+						if (fields[i].htmlType == "file") {
+							var el = '<div class="form-group"><label for="' + fields[i].name + '">' + fields[i].title + '</label><input id="' + fields[i].name + '" type="file" accept="image/*" data-classbutton="btn btn-default" data-classinput="form-control inline" class="form-control filestyle"></div>'
+						}
+						container.append(el);
+						arr.push(fields[i].name);
+					}
+					$(".datetimepicker").datetimepicker({
+						icons: {
+							time: 'fa fa-clock-o',
+							date: 'fa fa-calendar',
+							up: 'fa fa-chevron-up',
+							down: 'fa fa-chevron-down',
+							previous: 'fa fa-chevron-left',
+							next: 'fa fa-chevron-right',
+							today: 'fa fa-crosshairs',
+							clear: 'fa fa-trash'
+						},
+						minDate: moment("01/01/1950"),
+						maxDate: 'now',
+						format: 'DD MMMM, YYYY'
+					});
+					$(".filestyle").filestyle();
+					
+					console.log(fields)
+					console.log(arr)
+				}
+			},
+			error: function(xhr, status, error) {
+				Alert("Error", error, "error");
+			}
+		});
+	}
+	
+//	Country();
+	// Example of ajax_citizen_fields
+	/*$.get( 'ajax?json=ajax_citizen_fields',{state_id: 1}, function(data) {
+		console.log(data);
+		if (data.fields.length) {
+			var fields = JSON.parse(data.data);
+			alert(fields[0].name +', ' + fields[0].title + ', ' + 
+			fields[0].txType +', ' + fields[0].htmlType	 );
+			console.log( fields );
+		}
+	},'json')*/
+
+	function RequestOK() {
+	}
+
+	var serverTime;
+	var predata;
+	
+	$('#send').bind('click', function () {
+		predata = {
+			'TxName' : '{{.TxType}}',
+			'StateId': 1,	
+		};
+		for (i = 0; i < arr.length; i++ ) {
+			var field = arr[i];
+			if ($("#" + field).attr("type") == "file") {
+/*				$.each($('#'+field)[0].files, function(i, file) {
+					formdata.append(field +'-'+i, file);
+				});*/
+			} else {
+				predata[field] = $("#" + field).val();
+			}
+		}
+									
+		$.get( 'ajax?json=ajax_prepare_tx', predata,
+			 function (data) {
+				if (data.error.length > 0 ) {
+					Alert("Error", data.error, "error");
+				} else {
+					console.log(data);
+					predata.time = data.time;
+//					Alert("Success", "", "success");
+					$("#for-signature").val(data.forsign);
+					doSign();
+					predata.signature1 = $('#signature1').val();
+					predata.signature2 = $('#signature2').val();
+					predata.signature3 = $('#signature3').val();
+					$("#send_to_net").trigger("click");
+				}
+		}, "json" );
+	} );
+	
+	$('#send_to_net').bind('click', function () {
+		$.ajax({
+			type: 'POST',
+			url: 'ajax?json=ajax_send_tx',
+			data: predata,
+			dataType: 'json',
+			crossDomain: true,
+			success: function(result) {
+				send_to_net_success(result, RequestOK);
+			},
+			error: function(xhr, status, error) {
+				Alert("Error", error, "error");
+			}
+		});
+	} );	
+	$('a[href="#tab2"]').on('shown.bs.tab', function () {
+		$(".selectbox").select2({
+			minimumResultsForSearch: 6,
+			theme: 'bootstrap'
+		});
+	})
+	
+	$('a[href="#tab1"]').on('click', function () {
+		$(".map_canvas").show();
+	})
+	$('a[href="#tab2"]').on('click', function () {
+		$(".map_canvas").hide();
+	})
+</script>
+
+<div class="content-heading">
+   Request for citizen status
+</div>
+<!--<ol class="breadcrumb">
+   <li><a href="#" onclick="dl_navigate0('dashboardAnonym')">Dashboard</a></li>
+   <li class="active">Request for citizen status</li>
+</ol>-->
+<div role="tabpanel">
+	<!-- Nav tabs-->
+   <ul role="tablist" class="nav nav-tabs">
+	  <li role="presentation" class="active"><a href="#tab1" aria-controls="home" role="tab" data-toggle="tab">Virtual and not recognized</a></li>
+	  <li role="presentation"><a href="#tab2" aria-controls="profile" role="tab" data-toggle="tab">Real</a></li>
+   </ul>
+   <!-- Tab panes-->
+   <div class="tab-content">
+		<!-- START panel-->
+		<div id="tab1" role="tabpanel" class="panel panel-default tab-pane active" data-sweet-alert>
+			 <div class="panel-body">
+				<form role="form">
+				   <div class="form-group">
+					  <label for="countries">Country</label>
+					  <select id="countries" class="form-control" onChange="changeCountry(this);"></select>
+				   </div>
+				   <div id="message" class="alert alert-danger"></div>
+				   <div id="fields"></div>
+				</form>
+			 </div>
+			 <div id="buttons" class="panel-footer">
+			   <div class="clearfix">
+				  <div class="pull-right">
+					 <button id="send" type="button" class="btn btn-primary" data-tool="panel-refresh" onClick="preloader(this);">Request</button>
+					 <button id="refresh" class="hidden" type="button" data-tool="panel-refresh" onClick="preloader(this);"></button>
+				  </div>
+			   </div>
+			  </div>
+			</div>
+			<!-- END panel-->
+		  <!-- START panel-->
+			<div id="tab2" role="tabpanel" class="panel panel-default tab-pane" data-sweet-alert>
+			 <div class="panel-body">
+				<form role="form">
+				   <div class="form-group">
+					  <label for="countries">Country</label>
+					  <select class="selectbox form-control">
+					  </select>
+				   </div>
+				</form>
+			 </div>
+			 <div class="panel-footer">
+			   <div class="clearfix">
+				  <div class="pull-right">
+					 <button type="button" class="btn btn-primary">Request</button>
+				  </div>
+			   </div>
+			  </div>
+			</div>
+			<!-- END panel-->
+	   </div>
+</div>
+
+<!--div class="map_canvas">
+	<div id="map_canvas"></div>
+</div-->
+
+{{template "signatures".}}

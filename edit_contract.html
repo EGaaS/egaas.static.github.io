@@ -1,0 +1,132 @@
+{{ define "editContract" }}
+<style>
+	.textEditor {
+		position:relative;
+		font-size:0px;
+		padding-top:1px;
+		padding-bottom:1px;
+	}
+	.textEditor code  {
+		position:relative;
+		font: 14px "Monaco","Menlo","Ubuntu Mono","Consolas","source-code-pro",monospace;
+		line-height:17px;
+		z-index:1;
+    }
+	.textEditor section  {
+		position:absolute;
+		left:0px;
+		top:0px;
+		width:100%;
+        height:100%;
+		z-index:2;
+    }
+</style>
+<script>
+	var serverTime;
+	
+	var editor = ace.edit("textEditor");
+	var JavaScriptMode = ace.require("ace/mode/c_cpp").Mode;
+	$(".textEditor code").html(editor.getValue());
+	$("#value").val(editor.getValue());
+	editor.setTheme("ace/theme/chrome");
+    editor.session.setMode(new JavaScriptMode());
+	editor.setShowPrintMargin(false);
+	editor.getSession().setUseWrapMode(true);
+	editor.getSession().on('change', function(e) {
+		$(".textEditor code").html(editor.getValue());
+		$("#value").val(editor.getValue());
+		editor.resize();
+	});
+
+	$('#send').bind('click', function () {
+
+		$.get( 'ajax?controllerName=GetServerTime', function (data) {
+			serverTime = data.time;
+			if ($("#id").val()) {
+				$("#for-signature").val('{{.TxTypeId}},' + serverTime + ',{{.CitizenId}},{{.StateId}},' + $("#global").val() + ',' + $("#id").val() + ',' + $("#value").val() + ',' + $("#conditions").val());
+			} else {
+				$("#for-signature").val('{{.TxTypeId}},' + serverTime + ',{{.CitizenId}},{{.StateId}},' + $("#global").val()+','+$("#name").val() + ',' + $("#value").val() + ',' + $("#conditions").val());
+			}
+			doSign();
+			$("#send_to_net").trigger("click");
+		}, "json" );
+	} );
+
+
+	$('#send_to_net').bind('click', function () {
+		$.ajax({
+			type: 'POST',
+			url: 'ajax?controllerName=saveQueue',
+			data: {
+				'global' : $("#global").val(),
+				'id' : $("#id").val(),
+				'name' : $("#name").val(),
+				'value' : $("#value").val(),
+				'conditions' : $("#conditions").val(),
+				'type' : '{{.TxType}}',
+				'time' : serverTime,
+				'citizenId' : '{{.CitizenId}}',
+				'stateId' : '{{.StateId}}',
+				'signature1': $('#signature1').val(),
+				'signature2': $('#signature2').val(),
+				'signature3': $('#signature3').val()
+			},
+			dataType: 'json',
+			crossDomain: true,
+			success: function(data) { send_to_net_success(data) },
+			error: function(xhr, status, error) {
+				Alert("Error", error, "error");
+			}
+		});
+	} );
+</script>
+	<div class="content-heading">
+		{{if .Data.name}}Edit{{else}}New{{end}} Contract
+	</div>
+	<ol class="breadcrumb">
+	   <li><a href="#" onclick="load_page('contracts')">Smart Contracts</a></li>
+	</ol>
+
+	<!-- START panel-->
+	<div class="panel panel-default" data-sweet-alert>
+	 <div class="panel-body">
+		<form role="form">
+		   <div class="form-group">
+			   <label>Name</label>
+			   {{if .Data.name}} <p class="form-control-static">{{.Data.name}}</p> <input type="hidden" class="form-control" id="id" value="{{.Data.id}}"> {{else}} <input type="text" class="form-control" id="name"> {{end}}
+		   </div>
+		   <div class="form-group">
+			   <label>Value</label>
+			   <pre class="textEditor">
+					<code></code>
+					<section id="textEditor">{{.Data.value}}</section>
+				</pre>
+			   <textarea id="value" class="form-control hidden"></textarea>
+		   </div>
+		   <div class="form-group">
+			   <label>Conditions for change</label>
+			   <textarea class="form-control" id="conditions">{{.Data.conditions}}</textarea>
+		   </div>
+		</form>
+	 </div>
+
+		<input type="hidden" id="global" value="{{.Global}}">
+
+
+	 <div class="panel-footer">
+	   <div class="clearfix">
+		  <div class="pull-left">
+		  	
+		  </div>
+		  <div class="pull-right">
+			 <button type="button" id="send" class="btn btn-primary" data-tool="panel-refresh" onClick="preloader(this);">Send</button>
+		  </div>
+	   </div>
+	  </div>
+	</div>
+
+
+{{template "signatures".}}
+
+
+{{end}}

@@ -1,0 +1,29 @@
+{{define "modalAnonym"}}
+
+<script>
+$(document).ready(function() {
+	CopyToClipboard("#clipboard");
+});
+</script>
+<div class="modal fade" id="modal_wallet_address" role="dialog" aria-labelledby="modal_wallet_address_label">
+	<div class="modal-dialog" role="document">
+		<div class="brand modal-content" data-sweet-alert>
+			<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+			<div class="modal-header">
+				<h4 class="modal-title" id="modal_wallet_address_label">Wallet address</h4>
+			</div>
+			<div class="modal-body">
+				<center><img src="ajax?qr={{.Address}}" alt=""></center>
+				<div class="well" style="margin-bottom:0px; margin-top:15px; text-align:center; background-color:#f5f5f5;">{{.Address}}</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				<button id="clipboard" type="button" class="btn btn-primary" data-clipboard-action="copy" data-clipboard-text="{{.Address}}" onClick="preloader(this);">Copy to clipboard</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+{{template "signatures".}}
+
+{{end}}

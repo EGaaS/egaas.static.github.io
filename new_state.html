@@ -1,0 +1,116 @@
+{{ define "newState" }}
+<script>
+
+	var serverTime;
+	var selectbox = $("#countries");
+	
+	$(".aside .nav li").removeClass("active");
+	$(".anonym, .anonym_new_state").addClass("active");
+
+	function StateOK() {
+		$("#new_state_request").css("display", "none");
+		$("#my_state").css("display", "block");
+		preloader(document.getElementById('go_to_the_state'));
+		obj.addClass("whirl standard");
+		
+		$.get( '/ajax?controllerName=AjaxStatesList', function (data) {
+			selectboxState(data);
+			obj.removeClass("whirl standard");
+		}, "json" );
+	}
+	
+	$('#send').bind('click', function () {
+
+		$.get( 'ajax?controllerName=GetServerTime', function (data) {
+			serverTime = data.time;
+			$("#for-signature").val( '{{.TxTypeId}},'+serverTime+',{{.WalletId}},'+$('#state_name').val()+','+$('#currency_name').val());
+			doSign();
+			$("#send_to_net").trigger("click");
+		}, "json" );
+	} );
+
+	$('#send_to_net').bind('click', function () {
+		$.ajax({
+			type: 'POST',
+			url: 'ajax?controllerName=saveQueue',
+			data: {
+				'state_name' : $('#state_name').val(),
+				'currency_name' : $('#currency_name').val(),
+				'type' : '{{.TxType}}',
+				'time' : serverTime,
+				'walletId' : '{{.WalletId}}',
+				'signature1': $('#signature1').val(),
+				'signature2': $('#signature2').val(),
+				'signature3': $('#signature3').val()
+			},
+			dataType: 'json',
+			crossDomain: true,
+			success: function(data) {
+				send_to_net_success(data, StateOK);		
+
+			},
+			error: function(xhr, status, error) {
+				Alert("Error", error, "error");
+			}
+		});
+	} );
+
+
+	$('#go_to_the_state').bind('click', function () {
+		$.get( 'ajax?json=set_state&state_id='+$("#countries").val()+'&citizen_id={{.WalletId}}', function (data) {
+			load_menu();
+			load_template("dashboard_default");
+		}, "json" );
+	});
+</script>
+	<div class="content-heading">
+		Create a new state or community
+	</div>
+	 
+	<!-- START panel-->
+	<div id="my_state" class="panel panel-default" data-sweet-alert style="display:none;">
+		<div class="panel-body">
+			<form role="form">
+				<div class="form-group">
+					<label for="countries">Country</label>
+					<select id="countries" class="form-control"></select>
+				</div>
+			</form>
+		</div>
+		<div id="buttons" class="panel-footer">
+			<div class="clearfix">
+				<div class="pull-right">
+					<button type="button" class="btn btn-primary" data-tool="panel-refresh" onClick="preloader(this);" id="go_to_the_state">Go to the my state</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- END panel-->
+
+	<div id="new_state_request">
+		<div class="panel panel-default" data-sweet-alert>
+			<div class="panel-body">
+				<form role="form">
+				   <div class="form-group">
+					   <label for="state_name">State or community name</label>
+					   <input class="form-control" type="text" id="state_name">
+				   </div>
+				   <div class="form-group">
+					   <label for="currency_name">Currency name</label>
+					   <input class="form-control" type="text" id="currency_name">
+				   </div>
+				</form>
+			</div>
+			<div class="panel-footer">
+			   <div class="clearfix">
+				  <div class="pull-right">
+					 <button type="button" class="btn btn-primary" id="send" data-tool="panel-refresh" onClick="preloader(this);">Next</button>
+				  </div>
+			   </div>
+			</div>
+		</div>
+	</div>
+
+{{template "signatures".}}
+
+{{end}}
